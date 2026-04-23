@@ -1,0 +1,9 @@
+.cursor/
+.vscode/
+__pycache__/
+*/__pycache__/
+*.pyc
+*/*.pyc
+.mypy_cache/
+.venv/
+test.py
