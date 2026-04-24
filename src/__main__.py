@@ -1,3 +1,4 @@
+import argparse
 import json
 import sys
 from .models import FunctionModel, InputModel
@@ -6,22 +7,29 @@ from .generator import ValidationError
 from pathlib import Path
 
 
+def _parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--input",
+        default="data/input/function_calling_tests.json",
+    )
+    parser.add_argument(
+        "--output",
+        default="data/output/function_calling_results.json",
+    )
+    parser.add_argument(
+        "--functions-definition",
+        default="data/input/functions_definition.json",
+    )
+    return parser.parse_args()
+
+
 def main() -> None:
     try:
-        input_file: str = "data/input/function_calling_tests.json"
-        output_file: str = "data/output/function_calling_results.json"
-        functions_definition_file: str = "data/input/functions_definition.json"
-
-        if len(sys.argv) > 1:
-            for i, arg in enumerate(sys.argv[1:]):
-                if arg == "--input":
-                    input_file = sys.argv[i + 1]
-                elif arg == "--output":
-                    output_file = sys.argv[i + 1]
-                elif arg == "--functions-definition":
-                    functions_definition_file = sys.argv[i + 1]
-                else:
-                    raise ValueError(f"Invalid argument: {arg}")
+        args = _parse_args()
+        input_file: str = args.input
+        output_file: str = args.output
+        functions_definition_file: str = args.functions_definition
 
         for path in [input_file, functions_definition_file]:
             if not Path(path).exists():

@@ -1,4 +1,4 @@
-from typing import Any, List, Dict, Optional
+from typing import Any, Callable, List, Dict, Optional
 import json
 from .models import OutputModel
 
@@ -8,7 +8,7 @@ class ValidationError(Exception):
 
 
 class Generator:
-    def __init__(self, ask_model) -> None:
+    def __init__(self, ask_model: Callable[[str], str]) -> None:
         self.ask_model = ask_model
 
     def json(self, prompt: str,
@@ -62,7 +62,7 @@ Result:
 {'{'}
 """
 
-        result = self.ask_model(final_prompt)
+        result: str = self.ask_model(final_prompt)
         if self._validate_schema(result, schema):
             return result
         return None

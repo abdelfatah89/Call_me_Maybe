@@ -12,26 +12,39 @@ MAX_TRIES = 3
 
 def get_schema(file_path: str) -> Dict[str, Any]:
     with open(file_path, "r") as f:
-        schema = json.load(f)
+        schema: Dict[str, Any] = json.load(f)
     return schema
+
+
+def replace_char(text: str) -> str:
+    return text.replace("Ġ", " ").replace("Ċ", "\n")
 
 
 def ask_model(prompt: str) -> str:
     model = Small_LLM_Model()
+    vocab = model.get_path_to_vocab_file()
     detector = JsonStopDetector()
 
     # The '{' we pre-filled is part of the response we return.
     result = "{"
     detector.feed("{")
 
-    for _ in range(MAX_TOKENS):
-        ids = model.encode(prompt)
-        logits = model.get_logits_from_input_ids(ids.tolist()[0])
-        new_ids = int(np.argmax(logits))
-        next_word = model.decode([new_ids])
+    with open(vocab, 'r') as f:
+        token_to_id = json.load(f)
+    id_to_token = {int(v): k for k, v in token_to_id.items()}
 
+    token_ids = model.encode(prompt)
+    input_ids = token_ids.tolist()[0]
+    tokens = [id_to_token[i] for i in input_ids]
+
+    for _ in range(MAX_TOKENS):
+        logits = model.get_logits_from_input_ids(input_ids)
+        new_ids = int(np.argmax(logits))
+        tokens = [id_to_token[i] for i in [new_ids]]
+        next_word = replace_char("".join(tokens))
         prompt += next_word
         result += next_word
+        input_ids.append(new_ids)
         if detector.feed(next_word):
             break
 

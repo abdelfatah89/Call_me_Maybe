@@ -26,3 +26,14 @@ for _ in range(MAX_TOKENS):
     text = text + "".join(tokens)
     input_ids.append(new_ids)
     print(text)
+
+# for _ in range(MAX_TOKENS):
+#     ids = model.encode(prompt)
+#     logits = model.get_logits_from_input_ids(ids.tolist()[0])
+#     new_ids = int(np.argmax(logits))
+#     next_word = model.decode([new_ids])
+
+#     prompt += next_word
+#     result += next_word
+#     if detector.feed(next_word):
+#         break
