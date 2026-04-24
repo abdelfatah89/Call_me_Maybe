@@ -5,19 +5,19 @@ run:
 	uv run python3 -m src
 
 debug:
-	python -m debugpy 
+	python -m pdb src
 
 clean:
-	rm -rf __pycache__ */__pycache__ .pytest_cache
+	rm -rf __pycache__ */__pycache__ .mypy_cache .pytest_cache
 
 lint:
-	flake8 .
-	mypy . --warn-return-any \
+	uv run flake8 .
+	uv run mypy . --warn-return-any \
 	--warn-unused-ignores \
 	--ignore-missing-imports \
 	--disallow-untyped-defs \
 	--check-untyped-defs
 
 lint-strict:
-	flake8 .
-	mypy --strict .
+	uv run flake8 .
+	uv run mypy --strict .

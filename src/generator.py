@@ -57,9 +57,11 @@ VALIDATION CHECK (before responding):
 
 User request:
 {prompt}
+
+Result:
+{'{'}
 """
 
-        print(final_prompt)
         result = self.ask_model(final_prompt)
         if self._validate_schema(result, schema):
             return result
@@ -70,8 +72,6 @@ User request:
         for key in schema.keys():
             if key not in data:
                 return False
-                raise ValidationError(
-                  f"Error [OUTPUT VALIDATION]: Missing key: {key}")
         return True
 
     @staticmethod
@@ -80,50 +80,6 @@ User request:
         for data in list_data:
             try:
                 _ = OutputModel(**data)
-            except Exception as e:
+            except Exception:
                 return False
-                raise ValidationError(f"Error [OUTPUT VALIDATION]: '{e}' ")
         return True
-
-
-# def build_system_prompt(functions: list[dict[str, Any]],
-#                         user_question: str) -> str:
-#     functions_json = json.dumps(functions, indent=2)
-
-#     rules = f"""
-# You are a function-calling assistant.
-
-# Your job is to choose the best function for the user's request
-# and return ONLY a valid JSON object.
-
-# Available functions:
-# {functions_json}
-
-# Rules:
-# 1. Return exactly one JSON object.
-# 2. Do not add explanations.
-# 3. Do not add markdown.
-# 4. Do not add code fences.
-# 5. The JSON must have exactly this Format:
-# {{
-#   "prompt": "<prompt>",
-#   "name": "<function_name>",
-#   "parameters": {{
-#     "<param1>": <value>,
-#     "<param2>": <value>
-#   }}
-# }}
-# Make sure you respect this format
-# 6. The "prompt" must be the user's request.
-# 7. The "name" must be one of the available functions.
-# 8. The "parameters" object must contain the correct parameter
-# names and value types.
-# 9. Do not invent extra fields.
-# 10. If a parameter type is number, output a JSON number.
-# 11. If a parameter type is string, output a JSON string.
-# 12. If a parameter type is boolean, output true or false."""
-
-#     user_request = """User request:last_errorlast_error
-# {user_question}"""
-
-#     return rules + user_request
