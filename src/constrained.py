@@ -4,6 +4,7 @@ from .json_stop_detector import JsonStopDetector, JsonStopDetectorError
 from typing import Any, List, Dict, Optional
 import numpy as np
 import json
+import threading
 
 
 MAX_TOKENS = 256
@@ -51,6 +52,24 @@ def ask_model(prompt: str) -> str:
     return result
 
 
+def get_output(gen: Generator,
+               data: Dict[str, str],
+               output_list: List[str],
+               schema: Dict[str, str],
+               functions: List[Dict[str, Any]]) -> None:
+
+    last_error: Optional[str] = None
+    for _ in range(MAX_TRIES):
+        try:
+            result = gen.json(data["prompt"], schema,
+                              functions, last_error)
+            if result is not None:
+                output_list.append(result)
+                break
+        except JsonStopDetectorError as e:
+            last_error = str(e)
+
+
 def constrained(functions: List[Dict[str, Any]],
                 input_data: List[Dict[str, str]]) -> Optional[str]:
 
@@ -58,17 +77,41 @@ def constrained(functions: List[Dict[str, Any]],
     gen = Generator(ask_model)
     schema = get_schema("output_schema.json")
 
-    for data in input_data:
-        last_error: Optional[str] = None
-        for _ in range(MAX_TRIES):
-            try:
-                result = gen.json(data["prompt"], schema,
-                                  functions, last_error)
-                if result is not None:
-                    output_list.append(result)
-                    break
-            except JsonStopDetectorError as e:
-                last_error = str(e)
+    for i in range(0, len(input_data), 2):
+        t1, t2 = None, None
+
+        if input_data[i]:
+            t1 = threading.Thread(
+                target=get_output,
+                args=(gen, input_data[i], output_list, schema, functions)
+            )
+            t1.start()
+
+        if i + 1 < len(input_data) and input_data[i + 1]:
+            t2 = threading.Thread(
+                target=get_output,
+                args=(gen, input_data[i + 1], output_list, schema, functions)
+            )
+            t2.start()
+
+        if t1:
+            t1.join()
+        if t2:
+            t2.join()
+
+        # get_output(gen, input_data[i], output_list, schema, functions)
+        # get_output(gen, input_data[i + 1], output_list, schema, functions)
+
+        # last_error: Optional[str] = None
+        # for _ in range(MAX_TRIES):
+        #     try:
+        #         result = gen.json(data["prompt"], schema,
+        #                           functions, last_error)
+        #         if result is not None:
+        #             output_list.append(result)
+        #             break
+        #     except JsonStopDetectorError as e:
+        #         last_error = str(e)
 
     output = "[" + ", ".join(output_list) + "]"
     valid = gen._validate_output(output)
