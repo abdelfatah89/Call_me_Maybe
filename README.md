@@ -1,4 +1,4 @@
-*This project has been created as part of the 42 curriculum by abdelfatah.*
+*This project has been created as part of the 42 curriculum by alaktaou.*
 
 # Call me Maybe — LLM-Based Function Calling with Constrained Decoding
 
@@ -282,14 +282,6 @@ make lint       # flake8 (style) + mypy (type checking)
 
 mypy runs with `--disallow-untyped-defs` and `--check-untyped-defs` to enforce full type annotations across the codebase.
 
-### Smoke Test
-
-`test.py` provides a lightweight end-to-end check: it loads the model, encodes a prompt, runs 10 greedy decoding steps, and prints the token-by-token output. This verifies the model, tokenizer, and decoding loop work without running the full pipeline.
-
-```bash
-uv run python3 test.py
-```
-
 ## Example Usage
 
 ### Running with Default Inputs
@@ -353,12 +345,6 @@ uv run python3 -m src \
     --output my_results.json
 ```
 
-### Quick Smoke Test
-
-```bash
-uv run python3 test.py
-```
-
 Expected output (token-by-token generation):
 ```
 write a json schema:
@@ -373,20 +359,18 @@ write a json schema:
 ## Resources
 
 ### References
-
+- [How Large Language Models Work](https://www.youtube.com/watch?v=5sLYAQS9sWQ) — Youtube video
+- [Large Language Models explained briefly](https://www.youtube.com/watch?v=LPZh9BOjkQs&t=5s) — Youtube video
+- [Transformers, the tech behind LLMs | Deep Learning Chapter 5](https://www.youtube.com/watch?v=wjZofJX0v4M&t=3s) — Youtube video
 - [Qwen3-0.6B Model Card](https://huggingface.co/Qwen/Qwen3-0.6B) — the language model used in this project
-- [Hugging Face Transformers Documentation](https://huggingface.co/docs/transformers/) — model loading and inference API
-- [Constrained Decoding for LLMs (Guidance)](https://github.com/guidance-ai/guidance) — background on constrained generation techniques
-- [JSON Mode in Language Models](https://platform.openai.com/docs/guides/structured-outputs) — structured output concepts that inspired this approach
-- [Pydantic Documentation](https://docs.pydantic.dev/) — data validation library used for input/output schemas
-- [uv Package Manager](https://docs.astral.sh/uv/) — dependency management tool
+- [How To Use JSON In Python](https://www.youtube.com/watch?v=-51jxlQaxyA) — Youtube video
 
 ### AI Usage
 
 AI assistance (ChatGPT / Cursor) was used during development for the following tasks:
 
 - **Prompt engineering**: Iterating on the system prompt to improve JSON output reliability.
-- **Debugging**: Diagnosing tokenizer encoding edge cases (Unicode special characters `Ġ`/`Ċ`).
 - **Documentation**: Structuring and drafting parts of this README.
+- And also understanding all the concepts related to this project.
 
 All code was written, reviewed, and tested by the project author. AI was not used to generate the core algorithm or architecture.
