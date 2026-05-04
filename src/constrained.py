@@ -17,6 +17,10 @@ def get_schema(file_path: str) -> Dict[str, Any]:
     return schema
 
 
+def char_replace(text: str) -> str:
+    return text.replace(" ", "Ġ").replace("\n", "Ċ")
+
+
 def replace_char(text: str) -> str:
     return text.replace("Ġ", " ").replace("Ċ", "\n")
 
