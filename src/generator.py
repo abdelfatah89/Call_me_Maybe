@@ -1,6 +1,8 @@
 from typing import Any, Callable, List, Dict, Optional
 import json
 from .models import OutputModel
+from llm_sdk import Small_LLM_Model
+from .tokenizer import Tokenizer
 
 
 class ValidationError(Exception):
@@ -8,8 +10,11 @@ class ValidationError(Exception):
 
 
 class Generator:
-    def __init__(self, ask_model: Callable[[str], str]) -> None:
+    def __init__(self,
+                 ask_model: Callable[[str, Small_LLM_Model, Tokenizer],str]) -> None:
         self.ask_model = ask_model
+        self.model = Small_LLM_Model()
+        self.tokenizer = Tokenizer(self.model)
 
     def json(self, prompt: str,
              schema: Dict[str, Any],
@@ -44,9 +49,9 @@ STRICT RULES (must be followed exactly):
 8. "prompt" MUST exactly reflect the user's request.
 9. "parameters" MUST include only valid parameter names.
 10. All parameter values MUST match their required types:
-   - number → JSON number (no quotes)
-   - string → JSON string
-   - boolean → true or false
+   - number -> JSON number (no quotes)
+   - string -> JSON string
+   - boolean -> true or false
 11. Do NOT invent or assume missing parameters.
 12. Ensure the output is valid JSON (no trailing commas, correct quotes, etc.).
 
@@ -62,16 +67,16 @@ Result:
 {'{'}
 """
 
-        result: str = self.ask_model(final_prompt)
+        result: str = self.ask_model(final_prompt, self.model, self.tokenizer)
         if self._validate_schema(result, schema):
             return result
         return None
 
-    def _validate_schema(self, data: str, schema: dict[str, str]) -> bool:
+    def _validate_schema(self, data: str, schema: dict[str, str]):
         data = json.loads(data)
         for key in schema.keys():
             if key not in data:
-                return False
+                raise ValidationError(f"Missing required field: {key}")
         return True
 
     @staticmethod

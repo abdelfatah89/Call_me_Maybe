@@ -1,7 +1,7 @@
 from llm_sdk import Small_LLM_Model
 from typing import List, Tuple, Dict
 import json
-from src.constrained import char_replace, replace_char
+from functools import lru_cache
 
 
 class Tokenizer:
@@ -35,7 +35,7 @@ class Tokenizer:
         return pairs
 
     def tokenize(self, word: str) -> List[str]:
-        tokens = list(char_replace(word))
+        tokens = list(word.replace(" ", "Ġ").replace("\n", "Ċ"))
         merges = self.get_merges()
         while True:
             pairs = self.get_word_pairs(tokens)
@@ -57,22 +57,25 @@ class Tokenizer:
             tokens = new_tokens
         return tokens
 
-    def decode(self, word: str) -> List[int]:
+    @lru_cache(maxsize=4096)
+    def encode(self, word: str) -> Tuple[int, ...]:
         tokens = self.tokenize(word)
         token_to_id, _ = self.get_vocab()
         ids = [token_to_id[t] for t in tokens]
-        return ids
+        return tuple(ids)
 
-    def encode(self, ids: List[int]) -> List[str]:
+    @lru_cache(maxsize=4096)
+    def decode(self, ids: Tuple[int, ...]) -> Tuple[str, ...]:
         _, id_to_token = self.get_vocab()
         tokens = [id_to_token[i] for i in ids]
-        return tokens
+        return tuple(tokens)
 
 
 if __name__ == "__main__":
+    from src.constrained import replace_char
     m = Small_LLM_Model()
     t = Tokenizer(m)
     t.tokenize("hi my name is james, and i'm a coder at 1337")
-    ids = t.decode("hi my name is james, and i'm a coder at 1337")
-    tokens = t.encode(ids)
+    ids = t.encode("hi my name is james, and i'm a coder at 1337")
+    tokens = t.decode(ids)
     print(replace_char(''.join(tokens)))
