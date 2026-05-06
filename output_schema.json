@@ -1,5 +1,5 @@
 {
-    "prompt": "<prompt>",
+    "prompt": "<exact user request>",
     "name": "<function_name>",
     "parameters": {
         "<param1>": "<value>",

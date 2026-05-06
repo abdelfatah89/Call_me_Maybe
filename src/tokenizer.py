@@ -5,45 +5,51 @@ from functools import lru_cache
 
 
 class Tokenizer:
-    def __init__(self, model: Small_LLM_Model):
-        self.merge_rules_path = model.get_path_to_merges_file()
-        self.vocab_path = model.get_path_to_vocab_file()
+    def __init__(self, merges_path, vocab_path):
+        self.merges_path = merges_path
+        self.vocab_path = vocab_path
 
-    def get_pairs(self) -> List[Tuple[str, str]]:
-        merge_rules: List[Tuple[str, str]] = []
-        with open(self.merge_rules_path, 'r') as f:
-            for line in f:
+        self.merges = self._load_merges()
+        self.token_to_id, self.id_to_token = self._load_vocab()
+
+    def _load_merges(self) -> Dict[Tuple[str, str], int]:
+        merges = {}
+        with open(self.merges_path, 'r') as f:
+            for i, line in enumerate(f):
                 p1, p2 = line.split()
-                merge_rules.append((p1, p2))
-        return merge_rules
-
-    def get_merges(self) -> Dict[Tuple[str, str], int]:
-        pairs = self.get_pairs()
-        merges = {pair: i for i, pair in enumerate(pairs)}
+                merges[(p1, p2)] = i
         return merges
 
-    def get_vocab(self) -> Tuple[Dict[str, int], Dict[int, str]]:
+    def _load_vocab(self) -> Tuple[Dict[str, int], Dict[int, str]]:
         with open(self.vocab_path) as f:
             token_to_id = json.load(f)
         id_to_token = {int(v): k for k, v in token_to_id.items()}
         return token_to_id, id_to_token
 
-    def get_word_pairs(self, tokens: List[str]):
-        pairs = []
-        for i in range(len(tokens) - 1):
-            pairs.append((tokens[i], tokens[i+1]))
-        return pairs
+    def tokenize(self,text: str) -> List[str]:
+        words = text.split()
+        tokens: List[str] = []
+        for word in words:
+            tokens.extend(self._bpe_cached(word))
+        return tokens
 
-    def tokenize(self, word: str) -> List[str]:
-        tokens = list(word.replace(" ", "Ġ").replace("\n", "Ċ"))
-        merges = self.get_merges()
+    def _bpe(self, word: str) -> List[str]:
+        tokens = list(word)
+
         while True:
-            pairs = self.get_word_pairs(tokens)
-            valid_pairs = [p for p in pairs if p in merges]
-            if not valid_pairs:
+            best_pair = None
+            best_rank = float('inf')
+
+            for i in range(len(tokens) - 1):
+                pair = (tokens[i], tokens[i+1])
+                rank = self.merges.get(pair)
+                if rank is not None and rank < best_rank:
+                    best_rank = rank
+                    best_pair = pair
+
+            if best_pair is None:
                 break
 
-            best_pair = min(valid_pairs, key=lambda p: merges[p])
             new_tokens = []
             i = 0
             while i < len(tokens):
@@ -57,24 +63,25 @@ class Tokenizer:
             tokens = new_tokens
         return tokens
 
+    @lru_cache(10000)
+    def _bpe_cached(self, word: str) -> Tuple[str, ...]:
+        return tuple(self._bpe(word))
+
     @lru_cache(maxsize=4096)
     def encode(self, word: str) -> Tuple[int, ...]:
         tokens = self.tokenize(word)
-        token_to_id, _ = self.get_vocab()
-        ids = [token_to_id[t] for t in tokens]
-        return tuple(ids)
+        return tuple(self.token_to_id[t] for t in tokens)
 
     @lru_cache(maxsize=4096)
-    def decode(self, ids: Tuple[int, ...]) -> Tuple[str, ...]:
-        _, id_to_token = self.get_vocab()
-        tokens = [id_to_token[i] for i in ids]
-        return tuple(tokens)
+    def decode(self, ids: Tuple[int, ...]) -> str:
+        return "".join(self.id_to_token[i] for i in ids)
 
 
 if __name__ == "__main__":
     from src.constrained import replace_char
     m = Small_LLM_Model()
-    t = Tokenizer(m)
+    t = Tokenizer(m.get_path_to_merges_file(),
+                  m.get_path_to_vocab_file())
     t.tokenize("hi my name is james, and i'm a coder at 1337")
     ids = t.encode("hi my name is james, and i'm a coder at 1337")
     tokens = t.decode(ids)

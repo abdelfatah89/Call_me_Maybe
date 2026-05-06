@@ -14,7 +14,9 @@ class Generator:
                  ask_model: Callable[[str, Small_LLM_Model, Tokenizer],str]) -> None:
         self.ask_model = ask_model
         self.model = Small_LLM_Model()
-        self.tokenizer = Tokenizer(self.model)
+        vocab_path = self.model.get_path_to_vocab_file()
+        merges_path = self.model.get_path_to_merges_file()
+        self.tokenizer = Tokenizer(merges_path, vocab_path)
 
     def json(self, prompt: str,
              schema: Dict[str, Any],
@@ -59,6 +61,10 @@ VALIDATION CHECK (before responding):
 - Is the JSON valid?
 - Does it match the schema exactly?
 - Did you fix the previous error?
+
+The first key MUST be "prompt".
+The output MUST contain exactly these top-level keys in this order:
+prompt, name, parameters.
 
 User request:
 {prompt}

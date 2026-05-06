@@ -31,17 +31,17 @@ def ask_model(prompt: str,
     result = "{"
     detector.feed("{")
 
-    token_ids = list(tokenizer.encode(prompt))
-    tokens = tokenizer.tokenize(prompt)
+    tokens = list(tokenizer.encode(prompt))
+    text = "".join(tokenizer.tokenize(prompt))
 
     for _ in range(MAX_TOKENS):
-        logits = model.get_logits_from_input_ids(token_ids)
+        logits = model.get_logits_from_input_ids(tokens)
         new_ids = int(np.argmax(logits))
-        tokens = list(tokenizer.decode((new_ids,)))
-        next_word = replace_char("".join(tokens))
+        text = tokenizer.decode((new_ids,))
+        next_word = replace_char(text)
         prompt += next_word
         result += next_word
-        token_ids.append(new_ids)
+        tokens.append(new_ids)
         if detector.feed(next_word):
             break
     return result
