@@ -1,12 +1,16 @@
 import json
-from typing import Dict, Any, Optional, List
+from typing import Any, Dict, List, Optional
 
 
 def get_prompt(prompt: str, funcs: List[Dict[str, Any]],
                last_error: Optional[str] = None) -> str:
-    schema_path = "output_schema.json"
-    with open(schema_path, "r") as f:
-        schema: Dict[str, Any] = json.load(f)
+    """Build a compact JSON-only prompt for optional raw generation."""
+    schema: Dict[str, Any] = {
+        "prompt": "<exact user request>",
+        "name": "<function_name>",
+        "parameters": {"<param>": "<value>"},
+    }
+    previous_error = f"\nPrevious error: {last_error}" if last_error else ""
 
     final_prompt = f"""
 You are a function-calling assistant.
@@ -14,7 +18,7 @@ Select the best function for the user request and return ONLY one valid JSON obj
 
 Functions:
 {funcs}
-{"\nPrevious error: " + last_error if last_error else ""}
+{previous_error}
 
 Rules:
 

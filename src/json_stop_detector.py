@@ -6,6 +6,8 @@ class JsonStopDetectorError(Exception):
 
 
 class JsonStopDetector:
+    """Track generated text and report when one JSON object is complete."""
+
     def __init__(self) -> None:
         self.started = False
         self.in_string = False
@@ -25,9 +27,8 @@ class JsonStopDetector:
                     self.started = True
                     self.object_depth = 1
                     continue
-                print(text)
                 raise JsonStopDetectorError(
-                    f"JSON most start with {'{'!r}, got {char!r}")
+                    f"JSON must start with {'{'!r}, got {char!r}")
 
             if self.in_string:
                 if self.escape:

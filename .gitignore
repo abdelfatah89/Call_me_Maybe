@@ -6,5 +6,6 @@ __pycache__/
 */*.pyc
 .mypy_cache/
 .venv/
+data/output/
 test.py
 Untitled
