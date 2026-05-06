@@ -120,7 +120,10 @@ class Validator:
     def _value_matches_type(value: Any, expected_type: str) -> bool:
         """Return whether a Python value matches a JSON-schema-like type."""
         if expected_type == "number":
-            return isinstance(value, (int, float)) and not isinstance(value, bool)
+            return (
+                isinstance(value, (int, float))
+                and not isinstance(value, bool)
+            )
         if expected_type == "integer":
             return isinstance(value, int) and not isinstance(value, bool)
         if expected_type == "string":

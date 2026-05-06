@@ -14,7 +14,8 @@ def get_prompt(prompt: str, funcs: List[Dict[str, Any]],
 
     final_prompt = f"""
 You are a function-calling assistant.
-Select the best function for the user request and return ONLY one valid JSON object matching the schema.
+Select the best function for the user request and return ONLY one valid
+JSON object matching the schema.
 
 Functions:
 {funcs}

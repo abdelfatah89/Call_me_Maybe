@@ -52,8 +52,7 @@ def main() -> None:
         prompts = validator.v_input_file(input_file)
         funcs = validator.v_funcs_file(functions_definition_file)
 
-        # The model wrapper never raises on load; it falls back gracefully if the
-        # local model is unavailable in the review environment.
+        # The model wrapper falls back gracefully if the local model is absent.
         model = CostimizedModel()
 
         # Generate output

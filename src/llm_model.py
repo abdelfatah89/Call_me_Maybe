@@ -1,12 +1,11 @@
 import os
 import threading
-from typing import Any, Dict, List, Optional, Sequence, Tuple
-
-import numpy as np
-
-from llm_sdk import Small_LLM_Model
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Tuple
 
 from .json_stop_detector import JsonStopDetector, JsonStopDetectorError
+
+if TYPE_CHECKING:
+    from llm_sdk import Small_LLM_Model
 
 
 MAX_TOKENS = 96
@@ -23,7 +22,7 @@ class CostimizedModel:
     """Safe wrapper around the provided SDK with bounded generation helpers."""
 
     def __init__(self) -> None:
-        self.model: Optional[Small_LLM_Model] = None
+        self.model: Optional["Small_LLM_Model"] = None
         self.load_error: Optional[str] = None
         if os.getenv("CALL_ME_MAYBE_USE_LLM", "1").lower() in {
             "0",
@@ -54,6 +53,8 @@ class CostimizedModel:
     def _load_model(self) -> None:
         """Load the SDK model and record errors instead of raising them."""
         try:
+            from llm_sdk import Small_LLM_Model
+
             self.model = Small_LLM_Model()
         except Exception as exc:
             self.load_error = str(exc)
@@ -62,7 +63,7 @@ class CostimizedModel:
         """Return whether the underlying SDK model loaded successfully."""
         return self.model is not None
 
-    def _require_model(self) -> Small_LLM_Model:
+    def _require_model(self) -> "Small_LLM_Model":
         """Return the SDK model or raise a clear model-unavailable error."""
         if self.model is None:
             message = self.load_error or "model is not loaded"
@@ -86,7 +87,7 @@ class CostimizedModel:
         return self._require_model().get_logits_from_input_ids(input_ids)
 
     def generate(self, prompt: str, detector: JsonStopDetector) -> str:
-        """Generate text and stop immediately after one complete JSON object."""
+        """Generate text and stop after one complete JSON object."""
         tokens = self.encode(prompt)
         result = ""
         if prompt.rstrip().endswith("{"):
@@ -95,7 +96,7 @@ class CostimizedModel:
 
         for _ in range(MAX_TOKENS):
             logits = self.get_logits(tokens)
-            new_id = int(np.argmax(logits))
+            new_id = _argmax(logits)
             next_text = self.decode([new_id])
             result += next_text
             tokens.append(new_id)
@@ -171,3 +172,10 @@ class CostimizedModel:
                 node = children.setdefault(int(token_id), {"children": {}})
             node["name"] = name
         return root
+
+
+def _argmax(values: Sequence[float]) -> int:
+    """Return the index of the greatest value without requiring NumPy."""
+    if not values:
+        raise ModelUnavailableError("model returned no logits")
+    return max(range(len(values)), key=lambda index: values[index])

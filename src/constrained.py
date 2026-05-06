@@ -26,8 +26,15 @@ class FunctionCallBuilder:
         """Return one valid function call for a prompt."""
         function = self._select_function(prompt)
         parameters = {
-            name: self._extract_parameter(prompt, name, parameter.type, index)
-            for index, (name, parameter) in enumerate(function.parameters.items())
+            name: self._extract_parameter(
+                prompt,
+                name,
+                parameter.type,
+                index,
+            )
+            for index, (name, parameter) in enumerate(
+                function.parameters.items()
+            )
         }
         return OutputModel(
             prompt=prompt,
@@ -36,7 +43,7 @@ class FunctionCallBuilder:
         )
 
     def _select_function(self, prompt: str) -> FunctionModel:
-        """Select a function with constrained LLM decoding and safe fallback."""
+        """Select a function with constrained decoding and fallback."""
         function_pairs = [
             (
                 function.name,
@@ -130,7 +137,10 @@ def _synonym_score(prompt_norm: str, function_name: str) -> float:
         (("read", "file", "encoding"), ("read", "file")),
         (("format", "template"), ("format", "template")),
         (("even",), ("even",)),
-        (("regex", "replace", "substitute"), ("regex", "replace", "substitute")),
+        (
+            ("regex", "replace", "substitute"),
+            ("regex", "replace", "substitute"),
+        ),
     ]
     score = 0.0
     for prompt_terms, name_terms in groups:
@@ -200,12 +210,16 @@ def _extract_string(prompt: str, name: str, index: int) -> str:
             return database.group(1)
     if name in {"path", "file", "file_path", "filepath"}:
         path = re.search(
-            r"(?:file\s+at|read)\s+(.+?)(?:\s+with\s+[\w\-]+\s+encoding|$)",
+            (
+                r"\bread\s+(?:the\s+)?file\s+at\s+(.+?)"
+                r"(?:\s+with\s+[\w\-]+\s+encoding|$)"
+                r"|\bread\s+(.+?)(?:\s+with\s+[\w\-]+\s+encoding|$)"
+            ),
             prompt,
             re.IGNORECASE,
         )
         if path:
-            return path.group(1).strip()
+            return (path.group(1) or path.group(2)).strip()
     if name == "encoding":
         encoding = re.search(r"\bwith\s+([\w\-]+)\s+encoding\b", prompt_norm)
         if encoding:
@@ -218,7 +232,10 @@ def _extract_string(prompt: str, name: str, index: int) -> str:
     if name in {"name", "person"}:
         if quoted:
             return quoted[0]
-        match = re.search(r"\b(?:greet|hello|hi|to)\s+([^\s,.!?]+)", prompt_norm)
+        match = re.search(
+            r"\b(?:greet|hello|hi|to)\s+([^\s,.!?]+)",
+            prompt_norm,
+        )
         if match:
             return match.group(1)
     if name in {"s", "text", "string", "source_string"}:
