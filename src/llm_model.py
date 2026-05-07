@@ -89,7 +89,7 @@ class CostimizedModel:
             logits = self.get_logits(tokens)
             logits = np.array(logits, np.int64)
             new_id = int(np.argmax(logits))
-            next_word = self.decode([new_id])
+            next_word = self.decode((new_id,))
             next_word = next_word.replace("Ġ", " ").replace("Ċ", "\n")
             result += next_word
             tokens.append(new_id)
