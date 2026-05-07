@@ -14,37 +14,41 @@ def get_output(model: CostimizedModel,
                output_list: List[str]) -> None:
 
     last_error = None
-    # for _ in range(MAX_TRIES):
-        # try:
+    # try:
     detector = JsonStopDetector()
     prompt = get_prompt(prompt, funcs, None)
     result = model.generate(prompt, detector)
     output_list.append(result)
-        # except Exception as e:
-        #     last_error = str(e)
-
-from concurrent.futures import ThreadPoolExecutor, as_completed
+    # except Exception as e:
+    #     print(e)
+    #     last_error = str(e)
 
 
 def constrained(model: CostimizedModel,
                 prompts: List[str],
-                funcs: Any,
-                max_workers: int = 8) -> List[str]:
-
+                funcs: Any) -> List[str]:
     output_list: List[str] = []
 
-    def task(prompt: str):
-        return get_output(model, prompt, funcs, output_list)
+    for i in range(0, len(prompts), 2):
+        t1, t2 = None, None
 
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = [
-            executor.submit(task, p)
-            for p in prompts if p
-        ]
+        if prompts[i]:
+            t1 = threading.Thread(
+                target=get_output,
+                args=(model, prompts[i], funcs, output_list)
+            )
+            t1.start()
 
-        for future in as_completed(futures):
-            result = future.result()
-            if result is not None:
-                output_list.append(result)
+        if i + 1 < len(prompts) and prompts[i + 1]:
+            t2 = threading.Thread(
+                target=get_output,
+                args=(model, prompts[i + 1], funcs, output_list)
+            )
+            t2.start()
+
+        if t1:
+            t1.join()
+        if t2:
+            t2.join()
 
     return output_list

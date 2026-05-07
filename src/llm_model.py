@@ -4,6 +4,7 @@ import json
 from functools import lru_cache
 from .json_stop_detector import JsonStopDetector
 import numpy as np
+from datetime import datetime
 
 
 MAX_TOKENS = 96
@@ -75,7 +76,8 @@ class CostimizedModel:
         tokens = self.tokenize(text)
         return [self.token_to_id[t] for t in tokens]
 
-    def decode(self, ids: List[int]) -> str:
+    @lru_cache(maxsize=5120)
+    def decode(self, ids: Tuple[int, ...]) -> str:
         return "".join(self.id_to_token[i] for i in ids)
 
     def generate(self, prompt: str, detector: JsonStopDetector) -> str:
@@ -85,12 +87,12 @@ class CostimizedModel:
         tokens = self.encode(prompt)
         for _ in range(MAX_TOKENS):
             logits = self.get_logits(tokens)
+            logits = np.array(logits, np.int64)
             new_id = int(np.argmax(logits))
             next_word = self.decode([new_id])
             next_word = next_word.replace("Ġ", " ").replace("Ċ", "\n")
             result += next_word
             tokens.append(new_id)
-            print(result)
             if detector.feed(next_word):
                 break
 

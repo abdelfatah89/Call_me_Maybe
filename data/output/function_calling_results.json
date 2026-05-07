@@ -6,13 +6,5 @@
             "a": 2,
             "b": 3
         }
-    },
-    {
-        "prompt": "What is the sum of 265 and 345?",
-        "name": "fn_add_numbers",
-        "parameters": {
-            "a": 265,
-            "b": 345
-        }
     }
 ]
