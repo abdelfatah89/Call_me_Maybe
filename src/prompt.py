@@ -1,12 +1,20 @@
 import json
+from functools import lru_cache
 from typing import Dict, Any, Optional, List
+
+
+@lru_cache(maxsize=1)
+def _load_schema() -> str:
+    # Read once and cache the serialised form so we don't pay disk + json.dumps
+    # cost on every prompt build (11 prompts -> 11 reads becomes 1 read).
+    with open("output_schema.json", "r") as f:
+        schema: Dict[str, Any] = json.load(f)
+    return json.dumps(schema)
 
 
 def get_prompt(prompt: str, funcs: List[Dict[str, Any]],
                last_error: Optional[str] = None) -> str:
-    schema_path = "output_schema.json"
-    with open(schema_path, "r") as f:
-        schema: Dict[str, Any] = json.load(f)
+    schema_str = _load_schema()
 
     final_prompt = f"""
 You are a function-calling assistant.
@@ -20,7 +28,7 @@ Rules:
 
 Fix any previous error.
 Output ONLY JSON (no text, no markdown).
-Match the schema EXACTLY: {json.dumps(schema)}
+Match the schema EXACTLY: {schema_str}
 Do not add/remove/rename fields.
 "name" most be one of available functions.
 "prompt" = exact user request.
