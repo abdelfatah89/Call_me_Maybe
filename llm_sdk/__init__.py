@@ -98,6 +98,42 @@ class Small_LLM_Model:
         logits = out.logits[0, -1].tolist()
         return [float(x) for x in logits]
 
+    def encode_ids(self, text: str) -> list[int]:
+        """Tokenise *text* using the SDK's own HF tokenizer. No special tokens added."""
+        return self._tokenizer.encode(text, add_special_tokens=False)
+
+    def decode_id(self, token_id: int) -> str:
+        """Decode a single token id to its string form (raw, no special-token stripping)."""
+        # ``convert_ids_to_tokens`` returns the BPE-style string (e.g. "Ġhello"), which the
+        # caller can normalise; this is significantly cheaper than the full ``decode`` path.
+        token = self._tokenizer.convert_ids_to_tokens(token_id)
+        if isinstance(token, bytes):
+            token = token.decode("utf-8", errors="replace")
+        return token
+
+    def argmax_next_token(
+        self,
+        input_ids: list[int],
+        past_key_values: object | None = None,
+    ) -> Tuple[int, object]:
+        """
+        Run a single forward pass with KV-caching enabled and return ``(next_id, past_key_values)``.
+
+        When ``past_key_values`` is provided, ``input_ids`` should contain only the *new* tokens
+        to be appended (typically a single token), letting the model reuse previously computed
+        attention states. This turns each generation step from O(context) into O(1).
+        """
+        input_tensor = torch.tensor([input_ids], device=self._device, dtype=torch.long)
+        with torch.no_grad():
+            out = self._model(
+                input_ids=input_tensor,
+                past_key_values=past_key_values,
+                use_cache=True,
+            )
+        # argmax on-device avoids a full logits → CPU list conversion every step.
+        next_id = int(torch.argmax(out.logits[0, -1]).item())
+        return next_id, out.past_key_values
+
 
     def get_path_to_vocab_file(self) -> str:
         vocab_file_name = self._tokenizer.vocab_files_names.get('vocab_file', "vocab.json")
