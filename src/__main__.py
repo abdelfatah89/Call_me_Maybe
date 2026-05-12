@@ -8,6 +8,10 @@ from .llm_model import CostimizedModel
 from .constrained import constrained
 
 
+RED = '\033[91m'
+RESET = '\033[0m'
+
+
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -64,6 +68,10 @@ def main() -> None:
             output_data: str = json.loads(output)
             with open(output_file, "w") as f:
                 json.dump(output_data, f, indent=4)
+        else:
+            print(
+                f"{RED}Error: Output validation failed. "
+                f"No output file generated.{RESET}")
 
     except json.JSONDecodeError as e:
         print(f"Error [JSON]: {e}")
