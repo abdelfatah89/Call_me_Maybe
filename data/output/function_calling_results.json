@@ -16,13 +16,6 @@
         }
     },
     {
-        "prompt": "Greet john",
-        "name": "fn_greet",
-        "parameters": {
-            "name": "john"
-        }
-    },
-    {
         "prompt": "Greet shrek",
         "name": "fn_greet",
         "parameters": {
