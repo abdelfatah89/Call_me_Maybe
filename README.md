@@ -4,60 +4,107 @@
 
 ## Description
 
-**Call me Maybe** is a function-calling engine that uses a small, locally-running language model ([Qwen/Qwen3-0.6B](https://huggingface.co/Qwen/Qwen3-0.6B)) to translate natural language requests into structured JSON function calls.
+**Call me Maybe** is a function-calling engine that uses a locally-running language model ([Qwen/Qwen3-0.6B](https://huggingface.co/Qwen/Qwen3-0.6B)) to translate natural language requests into structured JSON function calls.
 
-Given a set of function definitions and a list of user prompts, the program:
+Given a set of function definitions (`data/input/functions_definition.json`) and a list of user prompts (`data/input/function_calling_tests.json`), the program:
 
-1. Constructs a carefully engineered system prompt containing the available functions, the required output schema, and the user's request.
-2. Feeds the prompt to the Qwen3-0.6B causal language model and performs **greedy token-by-token decoding**.
-3. Monitors the generated stream with a **`JsonStopDetector`** — a streaming brace/bracket depth tracker that halts generation the instant a syntactically complete JSON object is formed.
-4. Validates the result against the expected schema and, on failure, retries up to 3 times by feeding the error back into the prompt so the model can self-correct.
-5. Collects all validated results and writes them to `data/output/function_calling_results.json`.
+1. Constructs a system prompt containing the available functions, the required output schema, and the user's request (`src/generator.py` — `Generator.json`).
+2. Feeds the prompt to the Qwen3-0.6B causal language model and performs greedy token-by-token decoding using `numpy.argmax` on the raw logits (`src/constrained.py` — `ask_model`).
+3. Monitors the generated token stream with a `JsonStopDetector` that tracks brace/bracket depth and halts generation once a syntactically complete JSON object is formed (`src/json_stop_detector.py`).
+4. Validates the result against the expected schema. On `JsonStopDetectorError`, feeds the error message back into the prompt and retries up to `MAX_TRIES = 3` times (`src/constrained.py` — `constrained`).
+5. After processing all prompts, validates the aggregated output list with Pydantic's `OutputModel` and writes the result to `data/output/function_calling_results.json` (`src/__main__.py` — `main`).
 
-The project demonstrates that even a 0.6 B-parameter model can reliably produce correctly structured JSON when guided by prompt engineering, constrained stop detection, and a retry loop — without any fine-tuning or external API.
+### Project Structure
+
+```
+.
+├── llm_sdk/
+│   └── __init__.py          # Small_LLM_Model class — model loading, tokenization, logit extraction
+├── src/
+│   ├── __main__.py           # CLI entry point, file I/O, error handling
+│   ├── constrained.py        # Orchestration: ask_model() + constrained() decoding loop
+│   ├── generator.py          # Generator class — prompt construction, schema validation
+│   ├── json_stop_detector.py # JsonStopDetector — streaming JSON completeness detection
+│   └── models.py             # Pydantic models: FunctionModel, InputModel, OutputModel
+├── data/
+│   ├── input/
+│   │   ├── function_calling_tests.json   # 11 test prompts
+│   │   └── functions_definition.json     # 5 function definitions
+│   └── output/
+│       └── function_calling_results.json # Generated output
+├── output_schema.json        # Expected JSON output structure
+├── test.py                   # Smoke test — model load + 10-step greedy decode
+├── Makefile                  # install, run, lint, lint-strict, clean, debug
+└── pyproject.toml            # Dependencies and build config (uv/hatch)
+```
 
 ### Available Functions
 
+Defined in `data/input/functions_definition.json`:
+
 | Function | Description | Parameters |
 |---|---|---|
-| `fn_add_numbers` | Add two numbers together | `a: number`, `b: number` |
-| `fn_greet` | Generate a greeting message | `name: string` |
-| `fn_reverse_string` | Reverse a string | `s: string` |
-| `fn_get_square_root` | Calculate the square root | `a: number` |
-| `fn_substitute_string_with_regex` | Regex-based string replacement | `source_string`, `regex`, `replacement` |
+| `fn_add_numbers` | Add two numbers together and return their sum. | `a: number`, `b: number` |
+| `fn_greet` | Generate a greeting message for a person by name. | `name: string` |
+| `fn_reverse_string` | Reverse a string and return the reversed result. | `s: string` |
+| `fn_get_square_root` | Calculate the square root of a number. | `a: number` |
+| `fn_substitute_string_with_regex` | Replace all occurrences matching a regex pattern in a string. | `source_string: string`, `regex: string`, `replacement: string` |
+
+### Output Schema
+
+Defined in `output_schema.json`, every generated result must contain:
+
+```json
+{
+    "prompt": "<prompt>",
+    "name": "<function_name>",
+    "parameters": {
+        "<param1>": "<value>",
+        "<param2>": "<value>"
+    }
+}
+```
 
 ## Instructions
 
 ### Prerequisites
 
-- **Python ≥ 3.10**
-- **[uv](https://docs.astral.sh/uv/)** — fast Python package manager (install with `pip install uv`)
-- ~1.2 GB of free disk space for the Qwen3-0.6B model weights (downloaded automatically on first run)
-- Internet access on first run (to fetch model files from HuggingFace Hub; cached afterwards)
+- **Python ≥ 3.10** (specified in `pyproject.toml`)
+- **[uv](https://docs.astral.sh/uv/)** — Python package manager (install with `pip install uv`)
+- Internet access on first run to download model weights from HuggingFace Hub (cached in `~/.cache/huggingface/` afterwards)
 
 ### Installation
 
 ```bash
-# Clone the repository
 git clone <repository_url> Call_me_Maybe
 cd Call_me_Maybe
 
-# Install all dependencies
-make install        # equivalent to: uv sync
+make install        # runs: uv sync
 ```
 
-This creates a `.venv` virtual environment and installs PyTorch, Transformers, Pydantic, and all other dependencies defined in `pyproject.toml`.
+This creates a `.venv` virtual environment and installs all dependencies defined in `pyproject.toml`:
+
+- `torch>=2.0.0`
+- `transformers>=4.40.0`
+- `huggingface-hub>=0.20.0`
+- `accelerate>=1.13.0`
+- `pydantic>=2.13.2`
+- `protobuf>=7.34.1`
+- `sentencepiece>=0.2.1`
+- `flake8>=7.3.0`
+- `mypy>=1.20.2`
 
 ### Running the Program
 
 ```bash
-# Run the full pipeline with the default test suite
-make run            # equivalent to: uv run python3 -m src
+make run            # runs: uv run python3 -m src
 ```
 
-The program reads prompts from `data/input/function_calling_tests.json`, processes each one through the model, and writes the results to `data/output/function_calling_results.json`.
+This reads prompts from `data/input/function_calling_tests.json`, processes each one through the model, and writes results to `data/output/function_calling_results.json`.
 
 #### Custom Input/Output Paths
+
+The CLI accepts three arguments (defined in `src/__main__.py`):
 
 ```bash
 uv run python3 -m src \
@@ -73,222 +120,248 @@ make lint           # flake8 + mypy (standard mode)
 make lint-strict    # flake8 + mypy --strict
 ```
 
+`make lint` runs mypy with `--warn-return-any`, `--warn-unused-ignores`, `--ignore-missing-imports`, `--disallow-untyped-defs`, and `--check-untyped-defs`.
+
+The `llm_sdk/` directory is excluded from both flake8 (`.flake8`) and mypy (`mypy.ini`).
+
 ### Other Make Targets
 
 ```bash
-make clean          # remove __pycache__, .mypy_cache, .pytest_cache
-make debug          # launch pdb debugger
+make clean          # rm -rf __pycache__ */__pycache__ .mypy_cache .pytest_cache
+make debug          # python -m pdb src
 ```
 
 ## Algorithm Explanation
 
 ### Constrained Decoding Approach
 
-The core algorithm is a **prompt-constrained greedy decoding loop** with structural stop detection. Unlike fine-tuned or tool-use–specific models, this approach relies entirely on inference-time techniques to coerce a general-purpose LM into producing valid JSON.
+The algorithm is a greedy decoding loop with structural stop detection. It uses prompt engineering and a retry mechanism to produce valid JSON from the model.
 
-#### Step 1 — Prompt Construction (`Generator.json`)
+#### Step 1 — Prompt Construction (`src/generator.py` — `Generator.json`)
 
-A detailed system prompt is assembled containing:
+The `Generator.json` method assembles a prompt containing:
 
-- The full list of available function definitions (names, descriptions, parameter types).
-- The exact JSON schema the output must follow (`output_schema.json`).
-- 12 explicit rules the model must obey (valid JSON only, no markdown, correct types, etc.).
-- A validation checklist the model should mentally run before responding.
-- The user's natural language request.
-- A pre-filled opening brace `{` to prime the model into JSON-generation mode.
+- The full list of available function definitions passed as the `additional` parameter.
+- If `last_error` is not `None`, the string `"The previous output was invalid: "` followed by the error message.
+- Three critical instructions telling the model to fix previous errors.
+- Twelve strict rules the model must follow (valid JSON only, no markdown, match the schema exactly, correct types, etc.).
+- The exact JSON schema injected via `json.dumps(schema, indent=4)`.
+- A three-item validation checklist.
+- The user's prompt.
+- A pre-filled opening brace `{` as the last character, so the model's continuation starts inside a JSON object.
 
-The pre-filled `{` is a key technique: by starting the model's continuation inside a JSON object, it strongly biases the output distribution toward JSON key-value pairs from the very first token.
+#### Step 2 — Token-by-Token Greedy Decoding (`src/constrained.py` — `ask_model`)
 
-#### Step 2 — Token-by-Token Greedy Decoding (`ask_model`)
+The `ask_model` function:
+
+1. Instantiates a new `Small_LLM_Model()` (from `llm_sdk`).
+2. Loads the vocabulary file via `model.get_path_to_vocab_file()` and builds an `id_to_token` reverse mapping.
+3. Creates a `JsonStopDetector()` and pre-feeds `"{"` into it (setting `object_depth = 1`).
+4. Encodes the prompt into `input_ids` via `model.encode(prompt)`.
+5. Runs a loop for up to `MAX_TOKENS = 256` iterations:
+   - Calls `model.get_logits_from_input_ids(input_ids)` to get raw logits for the next token.
+   - Selects the next token via `int(np.argmax(logits))` (greedy — no sampling, no temperature).
+   - Looks up the token string in `id_to_token` and normalizes it with `replace_char` (`Ġ` → space, `Ċ` → newline).
+   - Appends the decoded text to `result` and the token ID to `input_ids`.
+   - Feeds the decoded text to `detector.feed()`. If it returns `True` (complete JSON object), breaks.
+6. Returns the accumulated `result` string.
+
+#### Step 3 — Structural Stop Detection (`src/json_stop_detector.py` — `JsonStopDetector`)
+
+`JsonStopDetector` is a character-by-character state machine with the following state:
+
+- `started: bool` — whether the opening `{` has been seen.
+- `in_string: bool` — whether the parser is inside a `"..."` string literal.
+- `escape: bool` — whether the previous character was `\` (to handle `\"` correctly).
+- `object_depth: int` — incremented on `{`, decremented on `}`.
+- `array_depth: int` — incremented on `[`, decremented on `]`.
+- `buffer: List[str]` — accumulates all characters.
+
+The `feed` method processes each character of the input text:
+
+- Skips whitespace before the first `{`. Raises `JsonStopDetectorError` if a non-whitespace, non-`{` character appears first.
+- While `in_string` is `True`, only tracks escape sequences and the closing `"`.
+- Outside strings, updates `object_depth` and `array_depth`.
+- Raises `JsonStopDetectorError` if `object_depth` or `array_depth` goes below zero.
+- Returns `True` when `started` is `True`, `in_string` is `False`, and both depths are zero.
+
+#### Step 4 — Retry Loop and Validation (`src/constrained.py` — `constrained`)
+
+The `constrained` function processes each prompt:
 
 ```
-input_ids = encode(prompt)
-for each step (up to MAX_TOKENS = 256):
-    logits = model.get_logits_from_input_ids(input_ids)
-    next_token = argmax(logits)            # greedy selection
-    decoded_text = vocab[next_token]       # raw token → text
-    result += decoded_text
-    input_ids.append(next_token)
-    if JsonStopDetector.feed(decoded_text):
-        break                              # complete JSON object detected
+for each prompt in input_data:
+    last_error = None
+    for _ in range(MAX_TRIES = 3):
+        try:
+            result = gen.json(prompt, schema, functions, last_error)
+            if result is not None:      # _validate_schema passed
+                output_list.append(result)
+                break
+        except JsonStopDetectorError as e:
+            last_error = str(e)         # fed back into next attempt's prompt
 ```
 
-The decoding operates directly on raw logits via `numpy.argmax` — no sampling, no temperature, no top-k/top-p. This deterministic strategy maximizes reproducibility and is well-suited for structured output where creativity is undesirable.
+There are two distinct validation mechanisms:
 
-#### Step 3 — Structural Stop Detection (`JsonStopDetector`)
+1. **Per-prompt schema key check** (`Generator._validate_schema`): Called inside `gen.json()` after `ask_model` returns. Parses the JSON string with `json.loads()` and checks that every key from `output_schema.json` (`prompt`, `name`, `parameters`) exists in the result. If a key is missing, `gen.json()` returns `None` and the retry loop continues — but no error message is fed back.
 
-The `JsonStopDetector` is a streaming state machine that processes each character as it arrives:
+2. **Final Pydantic validation** (`Generator._validate_output`): Called once after all prompts are processed, on the aggregated JSON list string. Parses each item with `OutputModel(prompt: str, name: str, parameters: dict[str, Any])`. If any item fails, the function returns `None` and nothing is written to disk.
 
-- Tracks `object_depth` (incremented on `{`, decremented on `}`).
-- Tracks `array_depth` (incremented on `[`, decremented on `]`).
-- Handles **string literals** correctly — braces inside `"..."` do not affect depth counters.
-- Handles **escape sequences** — a `\"` inside a string does not close the string.
-- Returns `True` the moment both depths return to zero, meaning a complete top-level JSON object has been emitted.
-- Raises `JsonStopDetectorError` on structural violations (e.g. unmatched closing braces).
+Only `JsonStopDetectorError` produces an error message that is fed back into the next retry's prompt. Schema validation failure triggers a silent retry.
 
-This is critical: without it, the model would continue generating text past the JSON boundary, producing garbage or a second unwanted object.
+### Token Handling (`src/constrained.py` — `replace_char`)
 
-#### Step 4 — Schema Validation and Retry Loop
+The Qwen tokenizer's vocabulary uses `Ġ` (Unicode U+0120) to represent a space and `Ċ` (Unicode U+010A) to represent a newline. The `replace_char` function:
 
-After stop detection halts generation, two validation layers run:
-
-1. **Schema key check** (`_validate_schema`): Parses the JSON and verifies every key from `output_schema.json` is present.
-2. **Pydantic model validation** (`_validate_output`): Deserializes into `OutputModel(prompt, name, parameters)` for type checking.
-
-If either fails, the error message is injected into the next prompt attempt:
-
-```
-"The previous output was invalid: <error message>"
+```python
+def replace_char(text: str) -> str:
+    return text.replace("Ġ", " ").replace("Ċ", "\n")
 ```
 
-The model gets up to `MAX_TRIES = 3` attempts per prompt. This self-correction mechanism lets the model learn from its own mistakes within a single session.
-
-### Token Handling
-
-The Qwen tokenizer uses special Unicode markers for whitespace: `Ġ` represents a space and `Ċ` represents a newline. The `replace_char` function normalizes these back to standard characters before they enter the result and the stop detector.
+This normalization is applied to each decoded token in `ask_model` before the text reaches the `JsonStopDetector` and the result buffer.
 
 ## Design Decisions
 
-### Why Qwen3-0.6B?
+### Model: Qwen/Qwen3-0.6B
 
-A 0.6 B-parameter model was chosen to balance capability against resource requirements. It is small enough to run on a laptop CPU (no GPU required) while still being capable of following structured instructions. Larger models would improve accuracy but at the cost of significantly higher memory and inference time.
+The default model is set in `llm_sdk/__init__.py` as `model_name: str = "Qwen/Qwen3-0.6B"`. The `Small_LLM_Model` class auto-selects the compute device with priority `mps > cuda > cpu` and sets `dtype` to `float16` on GPU/MPS or `float32` on CPU. The model is set to `eval()` mode and all parameter gradients are disabled (`requires_grad = False`).
 
-### Why Greedy Decoding Instead of Sampling?
+### Greedy Decoding
 
-For function calling, the output must be **deterministic and syntactically correct**. Sampling (temperature > 0) introduces randomness that can break JSON structure — a misplaced comma or unclosed quote is all it takes. Greedy argmax is the safest strategy for constrained generation.
+The decoding loop in `ask_model` uses `int(np.argmax(logits))` — a single deterministic token selection per step. There is no temperature, sampling, or top-k/top-p filtering in the codebase. This produces identical output for identical input.
 
-### Why a Streaming Stop Detector Instead of Post-Hoc Parsing?
+### Streaming Stop Detection
 
-Parsing the full output after generation would waste tokens. The streaming approach halts generation immediately upon JSON completion, saving compute and avoiding trailing garbage that could confuse downstream parsing.
+The `JsonStopDetector` halts generation token-by-token as soon as a complete JSON object is detected, rather than generating a fixed number of tokens and parsing afterwards. The `ask_model` loop checks `detector.feed(next_word)` after each token and breaks immediately on `True`.
 
-### Why Prompt Engineering Over Fine-Tuning?
+### Prompt Pre-filling
 
-Fine-tuning requires training data, GPU resources, and ongoing maintenance. Prompt engineering achieves comparable results for structured output tasks while being immediately adaptable — changing the function list or schema requires no retraining, just editing JSON files.
+The prompt in `Generator.json` ends with `{'{'}` and `ask_model` initializes `result = "{"` with `detector.feed("{")`. This means the model's first generated token continues from inside an already-opened JSON object.
 
-### Why Pydantic for Validation?
+### Pydantic Validation
 
-Pydantic provides declarative, type-safe validation with clear error messages. The `FunctionModel`, `InputModel`, and `OutputModel` classes enforce the contract at both input parsing and output verification stages, catching issues early with informative errors.
+Three Pydantic `BaseModel` classes in `src/models.py` enforce data contracts:
 
-### Architecture: Separation of Concerns
+- `FunctionModel(name: str, description: str, parameters: dict[str, ParameterModel], returns: ParameterModel)` — validates `functions_definition.json` entries.
+- `InputModel(prompt: str)` — validates `function_calling_tests.json` entries.
+- `OutputModel(prompt: str, name: str, parameters: dict[str, Any])` — validates final output entries.
 
-| Module | Responsibility |
-|---|---|
-| `llm_sdk/` | Model loading, tokenization, raw logit extraction (reusable SDK) |
-| `src/constrained.py` | Orchestration: wires model, generator, and stop detector together |
-| `src/generator.py` | Prompt construction and schema validation |
-| `src/json_stop_detector.py` | Streaming JSON completeness detection |
-| `src/models.py` | Pydantic data models for input/output validation |
-| `src/__main__.py` | CLI entry point, file I/O, error handling |
+### Model Instantiation
+
+The `ask_model` function in `src/constrained.py` creates a new `Small_LLM_Model()` on every call. Since `constrained` calls `ask_model` via `gen.json()` for each prompt (and potentially each retry), the model is loaded multiple times during a full run.
 
 ## Performance Analysis
 
-### Accuracy
+### Device Selection
 
-On the included 11-prompt test suite, the model successfully maps each natural language request to the correct function with the correct parameters. The results cover:
+The `Small_LLM_Model.__init__` method (in `llm_sdk/__init__.py`) selects compute device automatically:
 
-- Arithmetic (`fn_add_numbers` with integer arguments)
-- String operations (`fn_greet`, `fn_reverse_string`)
-- Numeric computation (`fn_get_square_root`)
-- Regex-based substitution (`fn_substitute_string_with_regex` with varied patterns)
+```python
+if torch.backends.mps.is_available():
+    device = "mps"
+elif torch.cuda.is_available():
+    device = "cuda"
+else:
+    device = "cpu"
+```
 
-The retry mechanism handles occasional malformed outputs — in practice, most prompts succeed on the first attempt, with the retry loop acting as a safety net.
+On CUDA, the model uses `device_map="auto"` for automatic layer distribution. On all other devices, layers are placed manually via `self._model.to(self._device)`.
 
-### Speed
+Precision is `float16` on `cuda` and `mps`, `float32` on `cpu`.
 
-| Hardware | Model Load | Per-Prompt Inference | Full Suite (11 prompts) |
-|---|---|---|---|
-| CPU (float32) | ~5–10 s | ~30–120 s | ~5–20 min |
-| GPU / CUDA (float16) | ~3–5 s | ~2–5 s | ~30–60 s |
-| Apple MPS (float16) | ~3–5 s | ~5–10 s | ~1–2 min |
+### Decoding Bounds
 
-The primary bottleneck on CPU is the token-by-token autoregressive loop: each of the up to 256 steps requires a full forward pass through the 0.6 B-parameter model. GPU acceleration provides a roughly 10–20× speedup.
+- `MAX_TOKENS = 256` (in `src/constrained.py`) — maximum tokens generated per prompt before the loop exits.
+- `MAX_TRIES = 3` (in `src/constrained.py`) — maximum retry attempts per prompt.
 
-Note: the current implementation reinstantiates the model for each prompt (`ask_model` creates a new `Small_LLM_Model()` per call). Refactoring to share a single model instance across prompts would significantly reduce total runtime.
+### Output Behavior
 
-### Reliability
-
-- **Deterministic**: Greedy decoding produces identical output for identical input.
-- **Bounded**: `MAX_TOKENS = 256` and `MAX_TRIES = 3` prevent runaway generation.
-- **Fail-safe**: If all retries fail, the prompt is silently skipped rather than crashing. If no valid outputs are produced, the program returns `None` and writes nothing.
+- If all `MAX_TRIES` attempts fail for a prompt (either `JsonStopDetectorError` or `_validate_schema` returning `False`), that prompt is skipped — nothing is appended to `output_list` for it.
+- After all prompts are processed, the results are joined as `"[" + ", ".join(output_list) + "]"` and passed to `_validate_output`.
+- If `_validate_output` returns `False`, the `constrained` function returns `None` and `__main__.py` writes nothing to disk.
 
 ## Challenges Faced
 
-### 1. Stopping Generation at the Right Point
+### 1. Stopping Generation at the JSON Boundary
 
-**Problem**: Without explicit control, the model generates text beyond the JSON boundary, appending explanations or a second object.
+The `JsonStopDetector` in `src/json_stop_detector.py` addresses the problem of knowing when a complete JSON object has been emitted. It tracks `object_depth` and `array_depth` through each character. Braces and brackets inside string literals do not affect the counters — the `in_string` and `escape` flags handle this. The detector returns `True` the instant both depths reach zero, and the `ask_model` loop breaks immediately.
 
-**Solution**: The `JsonStopDetector` state machine tracks brace/bracket depth character-by-character, halting generation the instant depth returns to zero. Special care was needed to avoid false positives from braces inside string literals (handled by the `in_string` / `escape` state flags).
+### 2. Tokenizer Special Characters
 
-### 2. Token-to-Text Mapping with Special Characters
+The Qwen tokenizer encodes spaces as `Ġ` and newlines as `Ċ` in its vocabulary. The `replace_char` function in `src/constrained.py` normalizes these before feeding text to the `JsonStopDetector` and the result buffer. Without this normalization, the stop detector would receive `Ġ` and `Ċ` characters instead of actual whitespace, and the resulting JSON would contain these Unicode markers.
 
-**Problem**: The Qwen tokenizer uses Unicode markers (`Ġ` for space, `Ċ` for newline) in its vocabulary. Feeding these directly to the JSON stop detector would break parsing.
+### 3. Handling Malformed Model Output
 
-**Solution**: The `replace_char` function normalizes tokens back to standard whitespace before they reach either the result buffer or the stop detector.
+The code addresses malformed output at multiple levels:
 
-### 3. Coercing a Small Model to Produce Valid JSON
+- **`JsonStopDetectorError`**: Raised on structural violations (unmatched braces/brackets, non-`{` start character). Caught in the `constrained` function's retry loop, where `str(e)` is stored in `last_error` and injected into the next prompt via `"The previous output was invalid: " + last_error`.
+- **`_validate_schema`**: Returns `False` if the parsed JSON is missing any of the required keys (`prompt`, `name`, `parameters`). This causes `gen.json()` to return `None`, triggering a silent retry.
+- **`_validate_output`**: Final check using Pydantic's `OutputModel` on the complete result list.
 
-**Problem**: A 0.6 B model is prone to subtle JSON errors — trailing commas, missing quotes, invented parameter names.
+### 4. Compact Output Schema
 
-**Solution**: A multi-layered approach:
-- **Pre-filling** the opening `{` to prime JSON mode.
-- **Explicit 12-rule instruction set** in the prompt.
-- **Schema injection** so the model sees the exact expected structure.
-- **Retry with error feedback** so the model can self-correct.
-
-### 4. Balancing Prompt Length vs. Context Window
-
-**Problem**: The system prompt (function definitions + rules + schema + user request) consumes a significant portion of the model's context window, leaving fewer tokens for generation.
-
-**Solution**: The output schema is deliberately compact (3 fields: `prompt`, `name`, `parameters`), and `MAX_TOKENS = 256` is generous enough for any single function call while staying within context limits.
+The output schema in `output_schema.json` contains only three fields: `prompt`, `name`, and `parameters`. The `Generator.json` method injects this schema into the prompt via `json.dumps(schema, indent=4)`, and the twelve strict rules reference it explicitly. The `MAX_TOKENS = 256` limit provides enough room for the model to generate a single function call JSON object.
 
 ## Testing Strategy
 
-### Input Validation
+### Input Validation (`src/__main__.py`)
 
-Both input files are validated at startup using Pydantic models:
+Before any inference runs, `main()` validates both input files:
 
-- `InputModel` ensures each prompt entry has the required `prompt` field.
-- `FunctionModel` ensures each function definition has `name`, `description`, `parameters`, and `returns` with correct types.
+- Each entry in the prompts file is validated against `InputModel(prompt: str)`.
+- Each entry in the functions file is validated against `FunctionModel(name: str, description: str, parameters: dict[str, ParameterModel], returns: ParameterModel)`.
 
-Invalid input triggers a clear error message and a non-zero exit code.
+If validation fails, a `ValidationError` is raised with a descriptive message and the program exits with code 1.
 
-### Output Validation
+### Per-Prompt Validation (`src/generator.py` — `_validate_schema`)
 
-Every generated JSON object passes through two layers:
+After each successful `ask_model` call, `_validate_schema` parses the JSON string and verifies that every key from `output_schema.json` is present in the result.
 
-1. **Schema key check**: Verifies all expected keys (`prompt`, `name`, `parameters`) are present.
-2. **Pydantic `OutputModel`**: Type-checks the deserialized object.
+### Final Output Validation (`src/generator.py` — `_validate_output`)
 
-After all prompts are processed, the aggregated output is validated once more as a complete list before writing to disk.
+After all prompts are processed, `_validate_output` parses the entire aggregated JSON list and validates each entry against `OutputModel`. If any entry fails Pydantic validation, the function returns `False` and nothing is written to disk.
 
-### Error Handling Coverage
+### Error Handling (`src/__main__.py`)
 
-The `__main__.py` entry point catches and categorizes errors:
+The `main()` function catches four exception types:
 
-- `json.JSONDecodeError` → malformed JSON files
-- `ValidationError` → schema/type mismatches
-- `FileNotFoundError` → missing input files
-- Generic `Exception` → unexpected failures
+- `json.JSONDecodeError` → prints `"Error [JSON]: ..."` and exits with code 1.
+- `ValidationError` → prints `"Error [VALIDATION]: ..."` and exits with code 1.
+- `FileNotFoundError` → prints `"Error [FILE NOT FOUND]: ..."` and exits with code 1.
+- `Exception` → prints `"Error [UNEXPECTED]: ..."` and exits with code 1.
 
-Each category prints a labeled error and exits with code 1.
-
-### Linting
-
-Static analysis ensures code quality:
+### Static Analysis (`Makefile`)
 
 ```bash
-make lint       # flake8 (style) + mypy (type checking)
+make lint       # uv run flake8 . && uv run mypy . --warn-return-any ...
+make lint-strict # uv run flake8 . && uv run mypy --strict .
 ```
 
-mypy runs with `--disallow-untyped-defs` and `--check-untyped-defs` to enforce full type annotations across the codebase.
+### Smoke Test (`test.py`)
 
-### Smoke Test
-
-`test.py` provides a lightweight end-to-end check: it loads the model, encodes a prompt, runs 10 greedy decoding steps, and prints the token-by-token output. This verifies the model, tokenizer, and decoding loop work without running the full pipeline.
+`test.py` loads the model, encodes the string `"write a json schema: \n{"`, and runs `MAX_TOKENS = 10` greedy decoding steps, printing the accumulated text after each step:
 
 ```bash
 uv run python3 test.py
 ```
+
+Expected output (tokens include Qwen's vocabulary markers since `test.py` does not call `replace_char`):
+
+```
+writeĠaĠjsonĠschema:ĠĊ{
+writeĠaĠjsonĠschema:ĠĊ{Ġ"
+writeĠaĠjsonĠschema:ĠĊ{Ġ"name
+writeĠaĠjsonĠschema:ĠĊ{Ġ"name":
+writeĠaĠjsonĠschema:ĠĊ{Ġ"name":Ġ"
+writeĠaĠjsonĠschema:ĠĊ{Ġ"name":Ġ"name
+writeĠaĠjsonĠschema:ĠĊ{Ġ"name":Ġ"name",
+writeĠaĠjsonĠschema:ĠĊ{Ġ"name":Ġ"name",Ġ"
+writeĠaĠjsonĠschema:ĠĊ{Ġ"name":Ġ"name",Ġ"age
+writeĠaĠjsonĠschema:ĠĊ{Ġ"name":Ġ"name",Ġ"age":
+```
+
+Note: `Ġ` represents a space and `Ċ` represents a newline in Qwen's tokenizer vocabulary.
 
 ## Example Usage
 
@@ -298,18 +371,26 @@ uv run python3 test.py
 make run
 ```
 
-**Input** (`data/input/function_calling_tests.json`):
+**Input** (`data/input/function_calling_tests.json` — 11 prompts):
+
 ```json
 [
   { "prompt": "What is the sum of 2 and 3?" },
+  { "prompt": "What is the sum of 265 and 345?" },
   { "prompt": "Greet shrek" },
+  { "prompt": "Greet john" },
   { "prompt": "Reverse the string 'hello'" },
+  { "prompt": "Reverse the string 'world'" },
   { "prompt": "What is the square root of 16?" },
-  { "prompt": "Replace all vowels in 'Programming is fun' with asterisks" }
+  { "prompt": "Calculate the square root of 144" },
+  { "prompt": "Replace all numbers in \"Hello 34 I'm 233 years old\" with NUMBERS" },
+  { "prompt": "Replace all vowels in 'Programming is fun' with asterisks" },
+  { "prompt": "Substitute the word 'cat' with 'dog' in 'The cat sat on the mat with another cat'" }
 ]
 ```
 
-**Output** (`data/output/function_calling_results.json`):
+**Output** (`data/output/function_calling_results.json` — 11 results):
+
 ```json
 [
     {
@@ -318,9 +399,19 @@ make run
         "parameters": { "a": 2, "b": 3 }
     },
     {
+        "prompt": "What is the sum of 265 and 345?",
+        "name": "fn_add_numbers",
+        "parameters": { "a": 265, "b": 345 }
+    },
+    {
         "prompt": "Greet shrek",
         "name": "fn_greet",
         "parameters": { "name": "shrek" }
+    },
+    {
+        "prompt": "Greet john",
+        "name": "fn_greet",
+        "parameters": { "name": "john" }
     },
     {
         "prompt": "Reverse the string 'hello'",
@@ -328,9 +419,28 @@ make run
         "parameters": { "s": "hello" }
     },
     {
+        "prompt": "Reverse the string 'world'",
+        "name": "fn_reverse_string",
+        "parameters": { "s": "world" }
+    },
+    {
         "prompt": "What is the square root of 16?",
         "name": "fn_get_square_root",
         "parameters": { "a": 16 }
+    },
+    {
+        "prompt": "Calculate the square root of 144",
+        "name": "fn_get_square_root",
+        "parameters": { "a": 144 }
+    },
+    {
+        "prompt": "Replace all numbers in 'Hello 34 I'm 233 years old' with NUMBERS",
+        "name": "fn_substitute_string_with_regex",
+        "parameters": {
+            "source_string": "Hello 34 I'm 233 years old",
+            "regex": "([0-9]+)",
+            "replacement": "NUMBERS"
+        }
     },
     {
         "prompt": "Replace all vowels in 'Programming is fun' with asterisks",
@@ -339,6 +449,15 @@ make run
             "source_string": "Programming is fun",
             "regex": "([aeiouAEIOU])",
             "replacement": "*"
+        }
+    },
+    {
+        "prompt": "The dog sat on the mat with another dog",
+        "name": "fn_substitute_string_with_regex",
+        "parameters": {
+            "source_string": "The cat sat on the mat with another cat",
+            "regex": "cat",
+            "replacement": "dog"
         }
     }
 ]
@@ -353,40 +472,17 @@ uv run python3 -m src \
     --output my_results.json
 ```
 
-### Quick Smoke Test
-
-```bash
-uv run python3 test.py
-```
-
-Expected output (token-by-token generation):
-```
-write a json schema:
-{ "name
-{ "name":
-{ "name": "name
-{ "name": "name",
-{ "name": "name", "age
-{ "name": "name", "age":
-```
-
 ## Resources
 
 ### References
 
-- [Qwen3-0.6B Model Card](https://huggingface.co/Qwen/Qwen3-0.6B) — the language model used in this project
-- [Hugging Face Transformers Documentation](https://huggingface.co/docs/transformers/) — model loading and inference API
-- [Constrained Decoding for LLMs (Guidance)](https://github.com/guidance-ai/guidance) — background on constrained generation techniques
-- [JSON Mode in Language Models](https://platform.openai.com/docs/guides/structured-outputs) — structured output concepts that inspired this approach
-- [Pydantic Documentation](https://docs.pydantic.dev/) — data validation library used for input/output schemas
-- [uv Package Manager](https://docs.astral.sh/uv/) — dependency management tool
+- [Qwen/Qwen3-0.6B](https://huggingface.co/Qwen/Qwen3-0.6B) — the default model loaded in `llm_sdk/__init__.py`
+- [Hugging Face Transformers](https://huggingface.co/docs/transformers/) — `AutoModelForCausalLM` and `AutoTokenizer` used in `llm_sdk/__init__.py`
+- [Hugging Face Hub](https://huggingface.co/docs/huggingface_hub/) — `hf_hub_download` used to fetch vocabulary files
+- [Pydantic](https://docs.pydantic.dev/) — `BaseModel` used for data validation in `src/models.py`
+- [PyTorch](https://pytorch.org/docs/) — tensor operations and model inference throughout `llm_sdk/`
+- [uv](https://docs.astral.sh/uv/) — package manager used in `Makefile`
 
 ### AI Usage
 
-AI assistance (ChatGPT / Cursor) was used during development for the following tasks:
-
-- **Prompt engineering**: Iterating on the system prompt to improve JSON output reliability.
-- **Debugging**: Diagnosing tokenizer encoding edge cases (Unicode special characters `Ġ`/`Ċ`).
-- **Documentation**: Structuring and drafting parts of this README.
-
-All code was written, reviewed, and tested by the project author. AI was not used to generate the core algorithm or architecture.
+AI tools were used during development for assistance with prompt engineering, debugging, and documentation. All code was reviewed and tested by the project author.
