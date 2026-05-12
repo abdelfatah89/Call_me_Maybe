@@ -23,10 +23,10 @@
         }
     },
     {
-        "prompt": "Reverse the string 'world'",
-        "name": "fn_reverse_string",
+        "prompt": "Greet john",
+        "name": "fn_greet",
         "parameters": {
-            "s": "world"
+            "name": "john"
         }
     },
     {
@@ -34,6 +34,13 @@
         "name": "fn_reverse_string",
         "parameters": {
             "s": "hello"
+        }
+    },
+    {
+        "prompt": "Reverse the string 'world'",
+        "name": "fn_reverse_string",
+        "parameters": {
+            "s": "world"
         }
     },
     {
@@ -51,21 +58,21 @@
         }
     },
     {
+        "prompt": "Replace all numbers in 'Hello 34 I'm 233 years old' with NUMBERS",
+        "name": "fn_substitute_string_with_regex",
+        "parameters": {
+            "source_string": "Hello 34 I'm 233 years old",
+            "regex": "(\\d+)",
+            "replacement": "NUMBERS"
+        }
+    },
+    {
         "prompt": "Replace all vowels in 'Programming is fun' with asterisks",
         "name": "fn_substitute_string_with_regex",
         "parameters": {
             "source_string": "Programming is fun",
             "regex": "([aeiouAEIOU])",
-            "replacement": "*"
-        }
-    },
-    {
-        "prompt": "Replace all numbers in 'Hello 34 I'm 233 years old' with NUMBERS",
-        "name": "fn_substitute_string_with_regex",
-        "parameters": {
-            "source_string": "Hello 34 I'm 233 years old",
-            "regex": "([0-9]+)",
-            "replacement": "NUMBERS"
+            "replacement": "asterisk"
         }
     },
     {

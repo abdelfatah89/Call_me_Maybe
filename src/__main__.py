@@ -1,10 +1,8 @@
-import argparse
-import json
-import sys
-from .models import FunctionModel, InputModel
+import json, sys, argparse, traceback
+from typing import Any
+from .validator import Validator, ValidationError
+from .llm_model import CostimizedModel
 from .constrained import constrained
-from .generator import ValidationError
-from pathlib import Path
 
 
 def _parse_args() -> argparse.Namespace:
@@ -24,39 +22,42 @@ def _parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def load_json(file: str) -> Any:
+    with open(file) as f:
+        loaded = json.load(f)
+    return loaded
+
+
 def main() -> None:
     try:
+        validator = Validator()
+        model = CostimizedModel()
+
+        # init paths
         args = _parse_args()
         input_file: str = args.input
         output_file: str = args.output
         functions_definition_file: str = args.functions_definition
+        paths = [input_file, functions_definition_file]
 
-        for path in [input_file, functions_definition_file]:
-            if not Path(path).exists():
-                raise FileNotFoundError(f"File {path} not found")
+        # Validation
+        validator.v_paths(paths)
+        validator.v_input_file(input_file)
+        validator.v_funcs_file(functions_definition_file)
 
-        with open(input_file, "r") as f:
-            input_data = json.load(f)
-            try:
-                _ = [InputModel(**data) for data in input_data]
-            except Exception as e:
-                raise ValidationError(
-                    f"Error [INPUT VALIDATION]: Invalid input data: {e}")
+        # load data from json files
+        funcs = load_json(functions_definition_file)
+        prompts = load_json(input_file)
+        prompts = [p['prompt'] for p in prompts] 
 
-        with open(functions_definition_file, "r") as f:
-            functions_definition = json.load(f)
-            try:
-                _ = [
-                    FunctionModel(**func)
-                    for func in functions_definition
-                    ]
-            except Exception as e:
-                raise ValidationError(
-                    "Error [FUNCTIONS DEFINITION VALIDATION]:"
-                    f"Invalid functions definition: {e}")
+        # Generate output
+        output_list = constrained(model, prompts, funcs)
 
-        output = constrained(functions_definition, input_data)
-        if output is not None:
+        output = "[" + ", ".join(output_list) + "]"
+
+        # Validate output and save to file
+        valid = validator.v_output(output)
+        if valid:
             output_data: str = json.loads(output)
             with open(output_file, "w") as f:
                 json.dump(output_data, f, indent=4)
@@ -72,6 +73,7 @@ def main() -> None:
         sys.exit(1)
     except Exception as e:
         print(f"Error [UNEXPECTED]: {e}")
+        print(traceback.format_exc())
         sys.exit(1)
 
 

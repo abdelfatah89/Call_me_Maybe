@@ -63,5 +63,13 @@ class JsonStopDetector:
 
         return False
 
+    def is_complete(self) -> bool:
+        return (
+            self.started
+            and not self.in_string
+            and self.object_depth == 0
+            and self.array_depth == 0
+        )
+
     def get_json_text(self) -> str:
         return "".join(self.buffer)
