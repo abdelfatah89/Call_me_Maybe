@@ -2,7 +2,6 @@ from src.json_stop_detector import JsonStopDetector
 from .prompt import get_instructions
 from .llm_model import CostimizedModel
 from typing import Any, List
-from concurrent.futures import ThreadPoolExecutor
 
 
 GREEN = '\033[92m'
@@ -38,15 +37,5 @@ def constrained(model: CostimizedModel,
         generate_model_output(
             model, prompt,
             instructions_tokens, output_list)
-
-    # with ThreadPoolExecutor(max_workers=3) as executor:
-    #     _ = {
-    #         executor.submit(
-    #             generate_model_output,
-    #             model, prompt,
-    #             instructions_tokens, output_list
-    #         )
-    #         for prompt in prompts
-    #     }
 
     return output_list

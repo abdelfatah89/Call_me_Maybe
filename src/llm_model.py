@@ -80,16 +80,16 @@ class CostimizedModel:
             if not any(c in t for c in '{}[]"'):
                 general_content.add(tid)
 
-        self._open_brace     = open_brace
-        self._close_brace    = close_brace
-        self._open_bracket   = open_bracket
-        self._close_bracket  = close_bracket
-        self._quote          = quote
-        self._colon          = colon
-        self._comma          = comma
+        self._open_brace = open_brace
+        self._close_brace = close_brace
+        self._open_bracket = open_bracket
+        self._close_bracket = close_bracket
+        self._quote = quote
+        self._colon = colon
+        self._comma = comma
         self._digit_or_minus = digit_or_minus
         self._general_content = general_content
-        self._whitespace     = whitespace
+        self._whitespace = whitespace
 
     @lru_cache(maxsize=256)
     def _tokenize_cached(self, text: str) -> List[str]:
@@ -113,8 +113,8 @@ class CostimizedModel:
             new_tokens = []
             i = 0
             while i < len(tokens):
-                if (i < len(tokens) - 1 
-                and (tokens[i], tokens[i + 1]) == best_pair):
+                if (i < len(tokens) - 1
+                        and (tokens[i], tokens[i + 1]) == best_pair):
                     new_tokens.append(tokens[i] + tokens[i + 1])
                     i += 2
                 else:
@@ -187,7 +187,8 @@ class CostimizedModel:
 
             new_id = int(np.argmax(logits))
             next_word = self.decode(new_id)
-            next_word = next_word.replace("Ġ", " ").replace("Ċ", "\n").replace('\\', '\\\\')
+            next_word = next_word.replace("Ġ", " ").replace(
+                "Ċ", "\n").replace('\\', '\\\\')
 
             result += next_word
             print(next_word, end="", flush=True)

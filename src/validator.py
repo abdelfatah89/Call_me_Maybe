@@ -9,7 +9,7 @@ class ValidationError(Exception):
 
 
 class Validator:
-    def __init__(self):
+    def __init__(self) -> None:
         pass
 
     def v_paths(self, paths: List[str]) -> None:
@@ -40,7 +40,7 @@ class Validator:
                     "Error [FUNCTIONS DEFINITION VALIDATION]:"
                     f"Invalid functions definition: {e}")
 
-    def v_schema(self, data: str, schema: dict[str, str]):
+    def v_schema(self, data: str, schema: dict[str, str]) -> bool:
         data = json.loads(data)
         for key in schema.keys():
             if key not in data:

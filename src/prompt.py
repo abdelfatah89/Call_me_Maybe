@@ -1,10 +1,10 @@
 import json
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, List
 from functools import lru_cache
 
 
 @lru_cache(maxsize=1)
-def _load_schema() -> Dict[str, Any]:
+def _load_schema() -> Any:
     schema_path = "output_schema.json"
     with open(schema_path, "r") as f:
         return json.load(f)

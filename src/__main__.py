@@ -1,4 +1,7 @@
-import json, sys, argparse, traceback
+import json
+import sys
+import argparse
+import traceback
 from typing import Any
 from .validator import Validator, ValidationError
 from .llm_model import CostimizedModel
@@ -48,7 +51,7 @@ def main() -> None:
         # load data from json files
         funcs = load_json(functions_definition_file)
         prompts = load_json(input_file)
-        prompts = [p['prompt'] for p in prompts] 
+        prompts = [p['prompt'] for p in prompts]
 
         # Generate output
         output_list = constrained(model, prompts, funcs)
