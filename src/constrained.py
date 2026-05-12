@@ -1,27 +1,30 @@
 from src.json_stop_detector import JsonStopDetector
-from .prompt import get_prompt
+from .prompt import get_instructions
 from .llm_model import CostimizedModel
 from typing import Any, List
-import threading
+from concurrent.futures import ThreadPoolExecutor
 
 
-MAX_TRIES = 3
+GREEN = '\033[92m'
+BLUE = '\033[94m'
+BOLD = '\033[1m'
+RESET = '\033[0m'
 
 
-def get_output(model: CostimizedModel,
-               prompt: str,
-               funcs: Any,
-               output_list: List[str]) -> None:
+def generate_model_output(
+        model: CostimizedModel,
+        prompt: str,
+        instructions_tokens: List[int],
+        output_list: List[str]
+        ) -> None:
 
-    last_error = None
-    # try:
     detector = JsonStopDetector()
-    prompt = get_prompt(prompt, funcs, None)
-    result = model.generate(prompt, detector)
+
+    print(f"{BOLD}{BLUE}User Request:{RESET} {prompt}")
+    result = model.generate(
+        prompt, instructions_tokens, detector)
+
     output_list.append(result)
-    # except Exception as e:
-    #     print(e)
-    #     last_error = str(e)
 
 
 def constrained(model: CostimizedModel,
@@ -29,26 +32,21 @@ def constrained(model: CostimizedModel,
                 funcs: Any) -> List[str]:
     output_list: List[str] = []
 
-    for i in range(0, len(prompts), 2):
-        t1, t2 = None, None
+    instructions = get_instructions(funcs)
+    instructions_tokens = model.encode(instructions)
+    for prompt in prompts:
+        generate_model_output(
+            model, prompt,
+            instructions_tokens, output_list)
 
-        if prompts[i]:
-            t1 = threading.Thread(
-                target=get_output,
-                args=(model, prompts[i], funcs, output_list)
-            )
-            t1.start()
-
-        if i + 1 < len(prompts) and prompts[i + 1]:
-            t2 = threading.Thread(
-                target=get_output,
-                args=(model, prompts[i + 1], funcs, output_list)
-            )
-            t2.start()
-
-        if t1:
-            t1.join()
-        if t2:
-            t2.join()
+    # with ThreadPoolExecutor(max_workers=3) as executor:
+    #     _ = {
+    #         executor.submit(
+    #             generate_model_output,
+    #             model, prompt,
+    #             instructions_tokens, output_list
+    #         )
+    #         for prompt in prompts
+    #     }
 
     return output_list

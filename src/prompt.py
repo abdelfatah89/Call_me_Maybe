@@ -1,40 +1,35 @@
 import json
 from typing import Dict, Any, Optional, List
+from functools import lru_cache
 
 
-def get_prompt(prompt: str, funcs: List[Dict[str, Any]],
-               last_error: Optional[str] = None) -> str:
+@lru_cache(maxsize=1)
+def _load_schema() -> Dict[str, Any]:
     schema_path = "output_schema.json"
     with open(schema_path, "r") as f:
-        schema: Dict[str, Any] = json.load(f)
+        return json.load(f)
 
-    final_prompt = f"""
-You are a function-calling assistant.
-Select the best function for the user request and return ONLY one valid JSON object matching the schema.
 
-Functions:
-{funcs}
-{"\nPrevious error: " + last_error if last_error else ""}
+def get_instructions(funcs: List[Dict[str, Any]]) -> str:
+    schema = _load_schema()
 
-Rules:
+    func_lines = []
+    for fn in funcs:
+        params = ", ".join(
+            f"{k}: {v['type']}"
+            for k, v in fn["parameters"].items()
+        )
+        func_lines.append(
+            f"- {fn['name']}({params})")
+    func_summary = "\n".join(func_lines)
 
-Fix any previous error.
-Output ONLY JSON (no text, no markdown).
-Match the schema EXACTLY: {json.dumps(schema)}
-Do not add/remove/rename fields.
-"name" most be one of available functions.
-"prompt" = exact user request.
-"parameters" = valid fields only, correct types.
-No assumptions, no extra data.
-Ensure valid JSON.
-
-Order of keys:
-prompt, name, parameters.
-
-User request:
-{prompt}
-
-Result:
-{'{'}
-"""
-    return final_prompt
+    instructions = (
+        f"You are a function-calling assistant.\n"
+        f"Return one JSON object matching this schema exactly:"
+        f"\n{json.dumps(schema)}\n"
+        f"Key order: prompt, name, parameters.\n"
+        f"Available functions:\n{func_summary}\n"
+        f"'prompt': exact user request.\n"
+        f"User request:"
+    )
+    return instructions

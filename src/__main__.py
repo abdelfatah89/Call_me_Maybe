@@ -1,8 +1,7 @@
-import json, sys, argparse
+import json, sys, argparse, traceback
 from typing import Any
 from .validator import Validator, ValidationError
 from .llm_model import CostimizedModel
-from .prompt import get_prompt
 from .constrained import constrained
 
 
@@ -49,6 +48,7 @@ def main() -> None:
         # load data from json files
         funcs = load_json(functions_definition_file)
         prompts = load_json(input_file)
+        prompts = [p['prompt'] for p in prompts] 
 
         # Generate output
         output_list = constrained(model, prompts, funcs)
@@ -73,6 +73,7 @@ def main() -> None:
         sys.exit(1)
     except Exception as e:
         print(f"Error [UNEXPECTED]: {e}")
+        print(traceback.format_exc())
         sys.exit(1)
 
 
