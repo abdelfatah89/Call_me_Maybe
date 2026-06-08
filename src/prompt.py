@@ -28,7 +28,6 @@ def get_instructions(funcs: List[Dict[str, Any]]) -> str:
         f"Return one JSON object matching this schema exactly:"
         f"\n{json.dumps(schema)}\n"
         f"Available functions:\n{func_summary}\n"
-        # f"prompt=user request\n"
         f"Key order: prompt, name, parameters.\n"
         f"User request:"
     )
