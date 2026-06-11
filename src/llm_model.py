@@ -168,13 +168,16 @@ class CostimizedModel:
                  instructions_tokens: List[int],
                  detector: JsonStopDetector) -> str:
 
-        result = "{"
-        detector.feed("{")
+        escaped_prompt = json.dumps(prompt)
+        output_start = f"{{ \"prompt\": {escaped_prompt},"
+        result = output_start
+        detector.feed(output_start)
         from .constrained import BOLD, GREEN, RESET
         print(f"{BOLD}{GREEN}LLM Reply (Qwen/Qwen3-0.6B):"
-              f"{RESET}\n {{", end="")
+              f"{RESET}\n {output_start}", end="")
 
-        prompt_tokens = self.encode(f"\n{prompt}\nResult: {{")
+        prompt_tokens = self.encode(f"\n{prompt}\nResult: "
+                                    f"{output_start}")
         tokens = instructions_tokens + prompt_tokens
 
         for _ in range(MAX_TOKENS):

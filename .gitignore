@@ -9,4 +9,4 @@ __pycache__/
 test.py
 Untitled
 cache-script.sh
-functions_calling_results.json
+data/output/

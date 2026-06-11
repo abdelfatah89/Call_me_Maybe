@@ -1,5 +1,6 @@
 import json
 import sys
+import os
 import argparse
 import traceback
 from typing import Any
@@ -61,6 +62,9 @@ def main() -> None:
         output_list = constrained(model, prompts, funcs)
 
         output = "[" + ", ".join(output_list) + "]"
+
+        # Ensure output directory exists
+        os.makedirs(os.path.dirname(output_file), exist_ok=True)
 
         # Validate output and save to file
         valid = validator.v_output(output)
