@@ -168,8 +168,7 @@ class CostimizedModel:
                  instructions_tokens: List[int],
                  detector: JsonStopDetector) -> str:
 
-        escaped_prompt = json.dumps(prompt)
-        output_start = f"{{ \"prompt\": "
+        output_start = "{{ \"prompt\": "
         result = output_start
         detector.feed(output_start)
         from .constrained import BOLD, GREEN, RESET

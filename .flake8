@@ -1,5 +1,6 @@
 [flake8]
 exclude =
+    moulinette,
     llm_sdk,
     .venv,
     .mypy_cache,
