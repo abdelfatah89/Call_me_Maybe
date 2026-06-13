@@ -169,7 +169,7 @@ class CostimizedModel:
                  detector: JsonStopDetector) -> str:
 
         escaped_prompt = json.dumps(prompt)
-        output_start = f"{{ \"prompt\": {escaped_prompt},"
+        output_start = f"{{ \"prompt\": "
         result = output_start
         detector.feed(output_start)
         from .constrained import BOLD, GREEN, RESET
